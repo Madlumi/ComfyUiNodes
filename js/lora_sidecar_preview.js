@@ -18,19 +18,15 @@ async function initNode(node) {
   const loraW = node.widgets?.find(w => w.name === "lora_name");
   if (!loraW) return;
 
-  // multiline textarea widget (ComfyUI widget, not the plain LiteGraph text)
+  // multiline textarea widget
   let metaW = node.widgets?.find(w => w.name === "meta");
-  if (!metaW) {
-    metaW = ComfyWidgets["STRING"](node, "meta", ["STRING", { multiline: true }], app).widget;
-  }
+  if (!metaW) metaW = ComfyWidgets["STRING"](node, "meta", ["STRING", { multiline: true }], app).widget;
+
   metaW.options = metaW.options || {};
   metaW.options.multiline = true;
-
-  // IMPORTANT: give it a fixed height so we can draw under it
   metaW.options.height = 220;
+  metaW.options.serialize = false;
   if (metaW.inputEl) metaW.inputEl.style.height = `${metaW.options.height}px`;
-
-  // keep reference for drawing
   node.__mn_metaW = metaW;
 
   // image state
@@ -42,7 +38,7 @@ async function initNode(node) {
   };
 
   node.__mn_margin = 10;
-  node.__mn_thumb_min_h = 360; // bigger
+  node.__mn_thumb_min_h = 360;
 
   async function refresh(value) {
     try {
@@ -72,7 +68,6 @@ async function initNode(node) {
       node.__mn_thumb_img.src = "";
     }
 
-    // ensure node is tall enough for textarea + thumb
     const m = node.__mn_margin;
     const metaBottom = (metaW.y || 0) + (metaW.options.height || 0) + 14;
     node.size[1] = Math.max(node.size[1], metaBottom + node.__mn_thumb_min_h + m);
@@ -80,14 +75,22 @@ async function initNode(node) {
     node.setDirtyCanvas(true, true);
   }
 
-  // hook dropdown change
+  // dropdown change
   const origCb = loraW.callback;
   loraW.callback = async (value) => {
     if (origCb) origCb.call(loraW, value);
     await refresh(value);
   };
 
-  // draw thumb BELOW the meta textarea, aspect-fit
+  // FIX: on reload, widget value applies during/after configure
+  const origOnConfigure = node.onConfigure;
+  node.onConfigure = function(info) {
+    if (origOnConfigure) origOnConfigure.call(this, info);
+    setTimeout(() => refresh(loraW.value), 0);
+    setTimeout(() => refresh(loraW.value), 100);
+  };
+
+  // draw thumb BELOW textarea (canvas draw), aspect-fit
   const origDraw = node.onDrawForeground;
   node.onDrawForeground = function (ctx) {
     if (origDraw) origDraw.call(this, ctx);
@@ -114,7 +117,9 @@ async function initNode(node) {
     ctx.drawImage(img, dx, dy, dw, dh);
   };
 
-  await refresh(loraW.value);
+  // initial (and delayed) refresh
+  setTimeout(() => refresh(loraW.value), 0);
+  setTimeout(() => refresh(loraW.value), 100);
 }
 
 app.registerExtension({
