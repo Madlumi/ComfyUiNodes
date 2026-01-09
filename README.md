@@ -1,6 +1,11 @@
 
 mnodes
 
+key features:
+- Simple Maths
+- Regex replace from list
+- Lora preview
+
 
 mint.py
 - small math helpers (ints/floats), quick arithmetic inside graphs
